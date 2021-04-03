@@ -1,10 +1,36 @@
 {
   "name": "Pintergif",
-  "version": "1.0",
+  "version": "1.1",
   "description": "Autoplay for GIFs on Pinterest.",
   "permissions": [],
   "content_scripts": [{
-    "matches": ["*://*.pinterest.com/*"],
+    "matches": [
+      "*://*.pinterest.com/*",
+      "*://*.pinterest.com.au/*",
+      "*://*.pinterest.com.mx/*",
+      "*://*.pinterest.at/*",
+      "*://*.pinterest.ca/*",
+      "*://*.pinterest.ch/*",
+      "*://*.pinterest.co.in/*",
+      "*://*.pinterest.co.kr/*",
+      "*://*.pinterest.co.nz/*",
+      "*://*.pinterest.co.uk/*",
+      "*://*.pinterest.co.uk/*",
+      "*://*.pinterest.cz/*",
+      "*://*.pinterest.de/*",
+      "*://*.pinterest.dk/*",
+      "*://*.pinterest.es/*",
+      "*://*.pinterest.fi/*",
+      "*://*.pinterest.fr/*",
+      "*://*.pinterest.ie/*",
+      "*://*.pinterest.it/*",
+      "*://*.pinterest.jp/*",
+      "*://*.pinterest.nl/*",
+      "*://*.pinterest.nz/*",
+      "*://*.pinterest.pt/*",
+      "*://*.pinterest.ru/*",
+      "*://*.pinterest.se/*"
+    ],
     "js": ["pintergif.js"]
   }],
   "icons": {
