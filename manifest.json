@@ -2,7 +2,16 @@
   "name": "Pintergif",
   "version": "1.1",
   "description": "Autoplay for GIFs on Pinterest.",
-  "permissions": [],
+  "permissions": ["storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "images/pintergif16.png",
+      "32": "images/pintergif32.png",
+      "48": "images/pintergif48.png",
+      "128": "images/pintergif128.png"
+    }
+  },
   "content_scripts": [{
     "matches": [
       "*://*.pinterest.com/*",
@@ -31,7 +40,7 @@
       "*://*.pinterest.ru/*",
       "*://*.pinterest.se/*"
     ],
-    "js": ["pintergif.js"]
+    "js": ["defaults.js", "pintergif.js"]
   }],
   "icons": {
     "16": "images/pintergif16.png",

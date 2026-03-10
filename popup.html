@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      width: 200px;
+      padding: 12px;
+      /* System font stack — uses the OS's native UI font. */
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      margin: 0;
+    }
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .toggle-row label {
+      cursor: pointer;
+      user-select: none;
+    }
+    .switch {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+    /* Hide the native checkbox; the .slider provides the visual. */
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      inset: 0;
+      background-color: #ccc;
+      border-radius: 22px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      left: 3px;
+      bottom: 3px;
+      background-color: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    /* Adjacent sibling selector: styles the slider when the hidden checkbox is checked. */
+    input:checked + .slider {
+      background-color: #435ee5;
+    }
+    input:checked + .slider::before {
+      transform: translateX(18px);
+    }
+  </style>
+</head>
+<body>
+  <div class="toggle-row">
+    <span>Autoplay GIFs</span>
+    <label class="switch">
+      <input type="checkbox" id="enabled">
+      <span class="slider"></span>
+    </label>
+  </div>
+  <script src="defaults.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

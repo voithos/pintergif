@@ -69,17 +69,55 @@ function start() {
   // Debounce the update routine to avoid slowdown.
   const debouncedGifify = debounce(
       () => gifify(visibilityObserver), DEBOUNCE_TIME);
-  const mutationObserver = new MutationObserver((event) => {
+
+  let mutationObserver = null;
+
+  /** Starts observing and converting GIFs. */
+  function enable() {
+    if (mutationObserver) return;
+
+    mutationObserver = new MutationObserver(() => {
+      debouncedGifify();
+    });
+
+    // Begin observing. Check for both child node changes as well as
+    // attribute changes, in case src/srcset gets updated.
+    mutationObserver.observe(mainContainer, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['src', 'srcset']
+    });
+
+    // Run once immediately for any images already on the page.
     debouncedGifify();
+  }
+
+  /** Stops observing. Already-converted GIFs remain as-is. */
+  function disable() {
+    if (mutationObserver) {
+      mutationObserver.disconnect();
+      mutationObserver = null;
+    }
+    visibilityObserver.disconnect();
+  }
+
+  // Check the initial enabled state.
+  chrome.storage.sync.get(DEFAULTS, (data) => {
+    if (data.enabled) {
+      enable();
+    }
   });
 
-  // Begin observing. Check for both child node changes as well as
-  // attribute changes, in case src/srcset gets updated.
-  mutationObserver.observe(mainContainer, {
-    subtree: true,
-    childList: true,
-    attributes: true,
-    attributeFilter: ['src', 'srcset']
+  // Listen for changes from the popup toggle.
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes.enabled) {
+      if (changes.enabled.newValue) {
+        enable();
+      } else {
+        disable();
+      }
+    }
   });
 }
 
