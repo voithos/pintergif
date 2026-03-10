@@ -146,7 +146,7 @@ function findWrapper(img) {
 }
 
 /** Swaps a single image element to its GIF source. */
-function gififyImg(img) {
+function gififyImg(img, showLoadingIndicator) {
   const srcset = img.srcset.trim();
   if (!srcset) return;
 
@@ -161,9 +161,11 @@ function gififyImg(img) {
   const gif = gifs[0];
 
   // Show loading animation on the closest positioned ancestor.
-  const wrapper = findWrapper(img);
-  const loading = new LoadingAnimation(wrapper);
-  img.addEventListener('load', () => loading.remove(), {once: true});
+  if (showLoadingIndicator) {
+    const wrapper = findWrapper(img);
+    const loading = new LoadingAnimation(wrapper);
+    img.addEventListener('load', () => loading.remove(), {once: true});
+  }
 
   // Modify the img to point to the new GIF. First we must remove srcset,
   // as that takes precedence.
@@ -205,12 +207,14 @@ function start() {
     mainContainer = document.body;
   }
 
+  let showLoadingIndicator = true;
+
   // Create an IntersectionObserver that swaps images to GIFs when they
   // enter (or are near) the viewport.
   const visibilityObserver = new IntersectionObserver((entries, observer) => {
     for (const entry of entries) {
       if (entry.isIntersecting) {
-        gififyImg(entry.target);
+        gififyImg(entry.target, showLoadingIndicator);
         observer.unobserve(entry.target);
       }
     }
@@ -254,6 +258,7 @@ function start() {
 
   // Check the initial enabled state.
   chrome.storage.sync.get(DEFAULTS, (data) => {
+    showLoadingIndicator = data.showLoadingIndicator;
     if (data.enabled) {
       enable();
     }
@@ -267,6 +272,9 @@ function start() {
       } else {
         disable();
       }
+    }
+    if (changes.showLoadingIndicator) {
+      showLoadingIndicator = changes.showLoadingIndicator.newValue;
     }
   });
 }
