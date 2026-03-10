@@ -68,8 +68,9 @@ class LoadingAnimation {
     const container = document.createDocumentFragment();
     const width = this.wrapper.clientWidth;
     const height = this.wrapper.clientHeight;
-    // Inset the path slightly so the runner isn't clipped by overflow:hidden.
-    const inset = 3;
+    // Inset the path slightly so the runner isn't clipped too much by overflow:hidden.
+    // But we still want it to hug the border.
+    const inset = 1;
     const r = Math.max(PIN_BORDER_RADIUS - inset, 0);
     const path = buildRoundedRectPath(
         inset, inset, width - inset * 2, height - inset * 2, r);
@@ -93,9 +94,9 @@ class LoadingAnimation {
         position: 'absolute',
         top: '0',
         left: '0',
-        width: '6px',
-        height: '3px',
-        borderRadius: '2px',
+        width: '4px',
+        height: '2px',
+        borderRadius: '1px',
         background: `rgba(221, 234, 255, ${opacity})`,
         boxShadow: `0 0 ${6 * opacity}px ${2 * opacity}px rgba(100, 170, 255, ${opacity * 0.9}), `
           + `0 0 ${14 * opacity}px ${4 * opacity}px rgba(60, 130, 245, ${opacity * 0.6})`,
@@ -105,7 +106,7 @@ class LoadingAnimation {
         offsetDistance: '0%',
         offsetRotate: 'auto',
         offsetAnchor: 'center',
-        animation: `pintergif-trace 2s linear infinite ${delay}s`,
+        animation: `pintergif-trace 2.5s linear infinite ${delay}s`,
       });
 
       container.appendChild(segment);
