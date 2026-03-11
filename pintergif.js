@@ -184,6 +184,35 @@ function gifify(visibilityObserver) {
   }
 }
 
+/** Observes video placeholders to trigger <video> injection on viewport entry. */
+function videoify(videoPlaceholderObserver) {
+  const placeholders = document.querySelectorAll(
+      '[data-test-id="pinrep-video--placeholder"]:not([data-pintergif-triggered])');
+  for (const el of placeholders) {
+    el.setAttribute('data-pintergif-triggered', '');
+    videoPlaceholderObserver.observe(el);
+  }
+}
+
+/** Finds eligible videos and begins observing them for viewport entry. */
+function videoPlayify(videoObserver, visibleVideos) {
+  const videos = document.querySelectorAll(
+      'video:not([data-pintergif-observed])');
+  for (const video of videos) {
+    video.setAttribute('data-pintergif-observed', '');
+    // Dismiss Pinterest's hover overlay.
+    video.dispatchEvent(new MouseEvent('mouseleave', {bubbles: true}));
+    video.dispatchEvent(new MouseEvent('mouseout', {bubbles: true}));
+    // Re-play if Pinterest pauses a still-visible video.
+    video.addEventListener('pause', () => {
+      if (visibleVideos.has(video)) {
+        video.play().catch(() => {});
+      }
+    });
+    videoObserver.observe(video);
+  }
+}
+
 /** Debounces a fn with a given timeout. */
 function debounce(fn, timeout) {
   let id = null;
@@ -207,11 +236,13 @@ function start() {
     mainContainer = document.body;
   }
 
+  let autoplayGifs = true;
+  let autoplayVideos = true;
   let showLoadingIndicator = true;
 
   // Create an IntersectionObserver that swaps images to GIFs when they
   // enter (or are near) the viewport.
-  const visibilityObserver = new IntersectionObserver((entries, observer) => {
+  const gifObserver = new IntersectionObserver((entries, observer) => {
     for (const entry of entries) {
       if (entry.isIntersecting) {
         gififyImg(entry.target, showLoadingIndicator);
@@ -220,9 +251,45 @@ function start() {
     }
   }, {rootMargin: INTERSECTION_MARGIN});
 
+  // Tracks videos currently in the viewport. Needed so the pause listener
+  // in videoPlayify() only re-plays videos that are still on screen.
+  const visibleVideos = new Set();
+
+  // Continuously observe videos to play on enter and pause on leave.
+  const videoObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      const video = entry.target;
+      if (entry.isIntersecting) {
+        visibleVideos.add(video);
+        video.muted = true;
+        video.play().catch(() => {});
+      } else {
+        visibleVideos.delete(video);
+        video.pause();
+      }
+    }
+  }, {rootMargin: INTERSECTION_MARGIN});
+
+  // Simulate hover on placeholders so Pinterest injects <video> elements.
+  const videoPlaceholderObserver = new IntersectionObserver((entries, observer) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        const el = entry.target;
+        el.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true}));
+        el.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
+        observer.unobserve(el);
+      }
+    }
+  }, {rootMargin: INTERSECTION_MARGIN});
+
   // Debounce the update routine to avoid slowdown.
-  const debouncedGifify = debounce(
-      () => gifify(visibilityObserver), DEBOUNCE_TIME);
+  const debouncedUpdate = debounce(() => {
+    if (autoplayGifs) gifify(gifObserver);
+    if (autoplayVideos) {
+      videoify(videoPlaceholderObserver);
+      videoPlayify(videoObserver, visibleVideos);
+    }
+  }, DEBOUNCE_TIME);
 
   let mutationObserver = null;
 
@@ -231,7 +298,7 @@ function start() {
     if (mutationObserver) return;
 
     mutationObserver = new MutationObserver(() => {
-      debouncedGifify();
+      debouncedUpdate();
     });
 
     // Begin observing. Check for both child node changes as well as
@@ -243,8 +310,8 @@ function start() {
       attributeFilter: ['src', 'srcset']
     });
 
-    // Run once immediately for any images already on the page.
-    debouncedGifify();
+    // Run once immediately for any elements already on the page.
+    debouncedUpdate();
   }
 
   /** Stops observing. Already-converted GIFs remain as-is. */
@@ -253,11 +320,15 @@ function start() {
       mutationObserver.disconnect();
       mutationObserver = null;
     }
-    visibilityObserver.disconnect();
+    gifObserver.disconnect();
+    videoObserver.disconnect();
+    videoPlaceholderObserver.disconnect();
   }
 
   // Check the initial enabled state.
   chrome.storage.sync.get(DEFAULTS, (data) => {
+    autoplayGifs = data.autoplayGifs;
+    autoplayVideos = data.autoplayVideos;
     showLoadingIndicator = data.showLoadingIndicator;
     if (data.enabled) {
       enable();
@@ -272,6 +343,12 @@ function start() {
       } else {
         disable();
       }
+    }
+    if (changes.autoplayGifs) {
+      autoplayGifs = changes.autoplayGifs.newValue;
+    }
+    if (changes.autoplayVideos) {
+      autoplayVideos = changes.autoplayVideos.newValue;
     }
     if (changes.showLoadingIndicator) {
       showLoadingIndicator = changes.showLoadingIndicator.newValue;
