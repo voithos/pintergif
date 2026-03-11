@@ -318,6 +318,12 @@ class PinterGif {
       el.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true}));
       el.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
 
+      // Immediately dismiss the hover overlay so it doesn't flash (for more than a frame).
+      requestAnimationFrame(() => {
+        el.dispatchEvent(new MouseEvent('mouseleave', {bubbles: true}));
+        el.dispatchEvent(new MouseEvent('mouseout', {bubbles: true}));
+      });
+
       if (attempt < maxRetries) {
         setTimeout(() => {
           if (!el.querySelector('video')) {
