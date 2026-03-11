@@ -174,45 +174,6 @@ function gififyImg(img, showLoadingIndicator) {
   img.setAttribute('src', gif);
 }
 
-/** Finds eligible images and queues them for GIF swap when visible. */
-function gifify(visibilityObserver) {
-  // Gather all unprocessed images that aren't yet GIFs.
-  const images = document.querySelectorAll(':not([src$=".gif"])[srcset]');
-
-  for (const img of images) {
-    visibilityObserver.observe(img);
-  }
-}
-
-/** Observes video placeholders to trigger <video> injection on viewport entry. */
-function videoify(videoPlaceholderObserver) {
-  const placeholders = document.querySelectorAll(
-      '[data-test-id="pinrep-video--placeholder"]:not([data-pintergif-triggered])');
-  for (const el of placeholders) {
-    el.setAttribute('data-pintergif-triggered', '');
-    videoPlaceholderObserver.observe(el);
-  }
-}
-
-/** Finds eligible videos and begins observing them for viewport entry. */
-function videoPlayify(videoObserver, visibleVideos) {
-  const videos = document.querySelectorAll(
-      'video:not([data-pintergif-observed])');
-  for (const video of videos) {
-    video.setAttribute('data-pintergif-observed', '');
-    // Dismiss Pinterest's hover overlay.
-    video.dispatchEvent(new MouseEvent('mouseleave', {bubbles: true}));
-    video.dispatchEvent(new MouseEvent('mouseout', {bubbles: true}));
-    // Re-play if Pinterest pauses a still-visible video.
-    video.addEventListener('pause', () => {
-      if (visibleVideos.has(video)) {
-        video.play().catch(() => {});
-      }
-    });
-    videoObserver.observe(video);
-  }
-}
-
 /** Debounces a fn with a given timeout. */
 function debounce(fn, timeout) {
   let id = null;
@@ -223,137 +184,169 @@ function debounce(fn, timeout) {
 }
 
 /**
- * Begins converting images to GIFs and starts the mutation observer to listen
- * for changes in the DOM.
+ * Main controller. Observes the DOM for new images and videos, swaps images
+ * to their GIF sources, and autoplays videos when they enter the viewport.
  */
-function start() {
-  injectStyles();
+class PinterGif {
+  constructor() {
+    this.opts = {...DEFAULTS};
 
-  // Fetch the main container for observing. If we can't find it,
-  // just use the doc body.
-  let mainContainer = document.querySelector('[role=main]');
-  if (!mainContainer) {
-    mainContainer = document.body;
+    /** Videos currently in the viewport (used by the pause listener). */
+    this.visibleVideos = new Set();
+    this.mutationObserver = null;
+    this.mainContainer = document.querySelector('[role=main]') || document.body;
+
+    this._createIntersectionObservers();
+    this.debouncedUpdate = debounce(() => this._update(), DEBOUNCE_TIME);
+
+    injectStyles();
+    this._initStorage();
   }
 
-  let autoplayGifs = true;
-  let autoplayVideos = true;
-  let showLoadingIndicator = true;
+  // ---------------------------------------------------------------------------
+  // Intersection observers
+  // ---------------------------------------------------------------------------
 
-  // Create an IntersectionObserver that swaps images to GIFs when they
-  // enter (or are near) the viewport.
-  const gifObserver = new IntersectionObserver((entries, observer) => {
-    for (const entry of entries) {
-      if (entry.isIntersecting) {
-        gififyImg(entry.target, showLoadingIndicator);
-        observer.unobserve(entry.target);
+  _createIntersectionObservers() {
+    const options = {rootMargin: INTERSECTION_MARGIN};
+
+    // Swap images to GIFs when they enter (or are near) the viewport.
+    this.gifObserver = new IntersectionObserver((entries, observer) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          gififyImg(entry.target, this.opts.showLoadingIndicator);
+          observer.unobserve(entry.target);
+        }
+      }
+    }, options);
+
+    // Continuously observe videos to play on enter and pause on leave.
+    this.videoObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        const video = entry.target;
+        if (entry.isIntersecting) {
+          this.visibleVideos.add(video);
+          video.muted = true;
+          video.play().catch(() => {});
+        } else {
+          this.visibleVideos.delete(video);
+          video.pause();
+        }
+      }
+    }, options);
+
+    // Simulate hover on placeholders so Pinterest injects <video> elements.
+    this.videoPlaceholderObserver = new IntersectionObserver((entries, observer) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          const el = entry.target;
+          el.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true}));
+          el.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
+          observer.unobserve(el);
+        }
+      }
+    }, options);
+  }
+
+  // ---------------------------------------------------------------------------
+  // DOM scanning
+  // ---------------------------------------------------------------------------
+
+  /** Scans for new images / video placeholders / videos and observes them. */
+  _update() {
+    if (this.opts.autoplayGifs) {
+      for (const img of document.querySelectorAll(':not([src$=".gif"])[srcset]')) {
+        this.gifObserver.observe(img);
       }
     }
-  }, {rootMargin: INTERSECTION_MARGIN});
-
-  // Tracks videos currently in the viewport. Needed so the pause listener
-  // in videoPlayify() only re-plays videos that are still on screen.
-  const visibleVideos = new Set();
-
-  // Continuously observe videos to play on enter and pause on leave.
-  const videoObserver = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      const video = entry.target;
-      if (entry.isIntersecting) {
-        visibleVideos.add(video);
-        video.muted = true;
-        video.play().catch(() => {});
-      } else {
-        visibleVideos.delete(video);
-        video.pause();
-      }
+    if (this.opts.autoplayVideos) {
+      this._videoify();
+      this._videoPlayify();
     }
-  }, {rootMargin: INTERSECTION_MARGIN});
+  }
 
-  // Simulate hover on placeholders so Pinterest injects <video> elements.
-  const videoPlaceholderObserver = new IntersectionObserver((entries, observer) => {
-    for (const entry of entries) {
-      if (entry.isIntersecting) {
-        const el = entry.target;
-        el.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true}));
-        el.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
-        observer.unobserve(el);
-      }
+  /** Observes new video placeholders to trigger <video> injection. */
+  _videoify() {
+    const sel = '[data-test-id="pinrep-video--placeholder"]:not([data-pintergif-triggered])';
+    for (const el of document.querySelectorAll(sel)) {
+      el.setAttribute('data-pintergif-triggered', '');
+      this.videoPlaceholderObserver.observe(el);
     }
-  }, {rootMargin: INTERSECTION_MARGIN});
+  }
 
-  // Debounce the update routine to avoid slowdown.
-  const debouncedUpdate = debounce(() => {
-    if (autoplayGifs) gifify(gifObserver);
-    if (autoplayVideos) {
-      videoify(videoPlaceholderObserver);
-      videoPlayify(videoObserver, visibleVideos);
+  /** Observes new <video> elements for viewport-based play/pause. */
+  _videoPlayify() {
+    for (const video of document.querySelectorAll('video:not([data-pintergif-observed])')) {
+      video.setAttribute('data-pintergif-observed', '');
+      // Dismiss Pinterest's hover overlay.
+      video.dispatchEvent(new MouseEvent('mouseleave', {bubbles: true}));
+      video.dispatchEvent(new MouseEvent('mouseout', {bubbles: true}));
+      // Re-play if Pinterest pauses a still-visible video.
+      video.addEventListener('pause', () => {
+        if (this.visibleVideos.has(video)) {
+          video.play().catch(() => {});
+        }
+      });
+      this.videoObserver.observe(video);
     }
-  }, DEBOUNCE_TIME);
+  }
 
-  let mutationObserver = null;
+  // ---------------------------------------------------------------------------
+  // Enable / disable
+  // ---------------------------------------------------------------------------
 
-  /** Starts observing and converting GIFs. */
-  function enable() {
-    if (mutationObserver) return;
+  /** Starts observing DOM mutations and runs an initial scan. */
+  enable() {
+    if (this.mutationObserver) return;
 
-    mutationObserver = new MutationObserver(() => {
-      debouncedUpdate();
-    });
+    this.mutationObserver = new MutationObserver(() => this.debouncedUpdate());
 
-    // Begin observing. Check for both child node changes as well as
-    // attribute changes, in case src/srcset gets updated.
-    mutationObserver.observe(mainContainer, {
+    // Watch for child additions and src/srcset attribute changes.
+    this.mutationObserver.observe(this.mainContainer, {
       subtree: true,
       childList: true,
       attributes: true,
-      attributeFilter: ['src', 'srcset']
+      attributeFilter: ['src', 'srcset'],
     });
 
-    // Run once immediately for any elements already on the page.
-    debouncedUpdate();
+    this.debouncedUpdate();
   }
 
   /** Stops observing. Already-converted GIFs remain as-is. */
-  function disable() {
-    if (mutationObserver) {
-      mutationObserver.disconnect();
-      mutationObserver = null;
+  disable() {
+    if (this.mutationObserver) {
+      this.mutationObserver.disconnect();
+      this.mutationObserver = null;
     }
-    gifObserver.disconnect();
-    videoObserver.disconnect();
-    videoPlaceholderObserver.disconnect();
+    this.gifObserver.disconnect();
+    this.videoObserver.disconnect();
+    this.videoPlaceholderObserver.disconnect();
   }
 
-  // Check the initial enabled state.
-  chrome.storage.sync.get(DEFAULTS, (data) => {
-    autoplayGifs = data.autoplayGifs;
-    autoplayVideos = data.autoplayVideos;
-    showLoadingIndicator = data.showLoadingIndicator;
-    if (data.enabled) {
-      enable();
-    }
-  });
+  // ---------------------------------------------------------------------------
+  // Storage
+  // ---------------------------------------------------------------------------
 
-  // Listen for changes from the popup toggle.
-  chrome.storage.onChanged.addListener((changes) => {
-    if (changes.enabled) {
-      if (changes.enabled.newValue) {
-        enable();
-      } else {
-        disable();
+  /** Reads initial settings and listens for popup changes. */
+  _initStorage() {
+    chrome.storage.sync.get(DEFAULTS, (data) => {
+      Object.assign(this.opts, data);
+      if (data.enabled) {
+        this.enable();
       }
-    }
-    if (changes.autoplayGifs) {
-      autoplayGifs = changes.autoplayGifs.newValue;
-    }
-    if (changes.autoplayVideos) {
-      autoplayVideos = changes.autoplayVideos.newValue;
-    }
-    if (changes.showLoadingIndicator) {
-      showLoadingIndicator = changes.showLoadingIndicator.newValue;
-    }
-  });
+    });
+
+    chrome.storage.onChanged.addListener((changes) => {
+      if (changes.enabled) {
+        changes.enabled.newValue ? this.enable() : this.disable();
+      }
+      for (const key of Object.keys(this.opts)) {
+        if (changes[key]) {
+          this.opts[key] = changes[key].newValue;
+        }
+      }
+    });
+  }
 }
 
-start();
+window.pintergif = new PinterGif();

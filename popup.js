@@ -1,26 +1,16 @@
-const toggle = document.getElementById('enabled');
-const gifsToggle = document.getElementById('autoplayGifs');
-const videosToggle = document.getElementById('autoplayVideos');
-const animToggle = document.getElementById('showLoadingIndicator');
+const toggles = Object.fromEntries(
+    Object.keys(DEFAULTS).map((key) => [key, document.getElementById(key)]));
 
 // Load the current state.
 chrome.storage.sync.get(DEFAULTS, (data) => {
-  toggle.checked = data.enabled;
-  gifsToggle.checked = data.autoplayGifs;
-  videosToggle.checked = data.autoplayVideos;
-  animToggle.checked = data.showLoadingIndicator;
+  for (const [key, el] of Object.entries(toggles)) {
+    el.checked = data[key];
+  }
 });
 
-// Save state when the toggles change.
-toggle.addEventListener('change', () => {
-  chrome.storage.sync.set({enabled: toggle.checked});
-});
-gifsToggle.addEventListener('change', () => {
-  chrome.storage.sync.set({autoplayGifs: gifsToggle.checked});
-});
-videosToggle.addEventListener('change', () => {
-  chrome.storage.sync.set({autoplayVideos: videosToggle.checked});
-});
-animToggle.addEventListener('change', () => {
-  chrome.storage.sync.set({showLoadingIndicator: animToggle.checked});
-});
+// Save state when any toggle changes.
+for (const [key, el] of Object.entries(toggles)) {
+  el.addEventListener('change', () => {
+    chrome.storage.sync.set({[key]: el.checked});
+  });
+}
