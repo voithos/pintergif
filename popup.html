@@ -3,13 +3,52 @@
 <head>
   <style>
     body {
-      width: 200px;
-      padding: 12px;
+      width: 220px;
+      padding: 16px;
       /* System font stack — uses the OS's native UI font. */
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       font-size: 14px;
       margin: 0;
+      position: relative;
+      overflow: hidden;
     }
+
+    /* Decorative L-shaped corner brackets */
+    body::before,
+    body::after,
+    .corner-bl,
+    .corner-br {
+      content: "";
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      opacity: 0.25;
+    }
+    /* Top-left: borders on top and left */
+    body::before {
+      top: 4px; left: 4px;
+      border-top: 2px solid #435ee5;
+      border-left: 2px solid #435ee5;
+    }
+    /* Top-right: borders on top and right */
+    body::after {
+      top: 4px; right: 4px;
+      border-top: 2px solid #435ee5;
+      border-right: 2px solid #435ee5;
+    }
+    /* Bottom-left: borders on bottom and left */
+    .corner-bl {
+      bottom: 4px; left: 4px;
+      border-bottom: 2px solid #435ee5;
+      border-left: 2px solid #435ee5;
+    }
+    /* Bottom-right: borders on bottom and right */
+    .corner-br {
+      bottom: 4px; right: 4px;
+      border-bottom: 2px solid #435ee5;
+      border-right: 2px solid #435ee5;
+    }
+
     .toggle-row {
       display: flex;
       align-items: center;
@@ -63,16 +102,52 @@
     .divider {
       border: none;
       border-top: 1px solid #e0e0e0;
-      margin: 10px 0;
+      margin: 12px 0;
+    }
+
+    /* Primary "Enabled" toggle — larger and more prominent. */
+    .toggle-row.primary {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .toggle-row.primary .switch {
+      width: 48px;
+      height: 26px;
+    }
+    .toggle-row.primary .slider::before {
+      width: 20px;
+      height: 20px;
+    }
+    .toggle-row.primary input:checked + .slider::before {
+      transform: translateX(22px);
+    }
+
+    /* Grouped options fieldset */
+    .options {
+      border: 1px solid #d0d4e4;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin: 0;
+    }
+    .options legend {
+      font-size: 11px;
+      font-weight: 600;
+      color: #8a8fa8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 0 4px;
     }
     .options .toggle-row {
       font-size: 12px;
-      color: #666;
+      color: #555;
     }
   </style>
 </head>
 <body>
-  <div class="toggle-row">
+  <div class="corner-bl"></div>
+  <div class="corner-br"></div>
+
+  <div class="toggle-row primary">
     <span>Enabled</span>
     <label class="switch">
       <input type="checkbox" id="enabled">
@@ -80,7 +155,8 @@
     </label>
   </div>
   <hr class="divider">
-  <div class="options">
+  <fieldset class="options">
+    <legend>Options</legend>
     <div class="toggle-row">
       <span>Autoplay GIFs</span>
       <label class="switch">
@@ -102,7 +178,7 @@
         <span class="slider"></span>
       </label>
     </div>
-  </div>
+  </fieldset>
   <script src="defaults.js"></script>
   <script src="popup.js"></script>
 </body>
