@@ -193,6 +193,8 @@ class PinterGif {
 
     /** Videos currently in the viewport (used by the pause listener). */
     this.visibleVideos = new Set();
+    /** Maps video placeholder elements to their LoadingAnimation instances. */
+    this.placeholderLoading = new Map();
     this.mutationObserver = null;
     this.mainContainer = document.querySelector('[role=main]') || document.body;
 
@@ -240,9 +242,8 @@ class PinterGif {
       for (const entry of entries) {
         if (entry.isIntersecting) {
           const el = entry.target;
-          el.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true}));
-          el.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
           observer.unobserve(el);
+          this._triggerVideoHover(el);
         }
       }
     }, options);
@@ -270,6 +271,10 @@ class PinterGif {
     const sel = '[data-test-id="pinrep-video--placeholder"]:not([data-pintergif-triggered])';
     for (const el of document.querySelectorAll(sel)) {
       el.setAttribute('data-pintergif-triggered', '');
+      if (this.opts.showLoadingIndicator) {
+        const wrapper = findWrapper(el);
+        this.placeholderLoading.set(el, new LoadingAnimation(wrapper));
+      }
       this.videoPlaceholderObserver.observe(el);
     }
   }
@@ -278,6 +283,12 @@ class PinterGif {
   _videoPlayify() {
     for (const video of document.querySelectorAll('video:not([data-pintergif-observed])')) {
       video.setAttribute('data-pintergif-observed', '');
+      // Remove the loading animation from the placeholder that spawned this video.
+      const placeholder = video.closest('[data-pintergif-triggered]');
+      if (placeholder && this.placeholderLoading.has(placeholder)) {
+        this.placeholderLoading.get(placeholder).remove();
+        this.placeholderLoading.delete(placeholder);
+      }
       // Dismiss Pinterest's hover overlay.
       video.dispatchEvent(new MouseEvent('mouseleave', {bubbles: true}));
       video.dispatchEvent(new MouseEvent('mouseout', {bubbles: true}));
@@ -289,6 +300,32 @@ class PinterGif {
       });
       this.videoObserver.observe(video);
     }
+  }
+
+  /**
+   * Dispatches simulated hover events on a placeholder element. If no <video>
+   * appears after 500ms, retries up to maxRetries times.
+   */
+  _triggerVideoHover(el, attempt = 0, maxRetries = 5) {
+    // On retries, send a leave first so Pinterest sees a fresh hover cycle.
+    if (attempt > 0) {
+      el.dispatchEvent(new MouseEvent('mouseleave', {bubbles: true}));
+      el.dispatchEvent(new MouseEvent('mouseout', {bubbles: true}));
+    }
+
+    // Give Pinterest a moment to process the leave before re-entering.
+    setTimeout(() => {
+      el.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true}));
+      el.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
+
+      if (attempt < maxRetries) {
+        setTimeout(() => {
+          if (!el.querySelector('video')) {
+            this._triggerVideoHover(el, attempt + 1, maxRetries);
+          }
+        }, 500);
+      }
+    }, attempt > 0 ? 50 : 0);
   }
 
   // ---------------------------------------------------------------------------
