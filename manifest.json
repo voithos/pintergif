@@ -1,6 +1,6 @@
 {
   "name": "Pintergif",
-  "version": "2.0",
+  "version": "2.1",
   "description": "Autoplay for GIFs on Pinterest.",
   "permissions": ["storage"],
   "action": {
