@@ -294,7 +294,10 @@ class PinterGif {
       video.dispatchEvent(new MouseEvent('mouseout', {bubbles: true}));
       // Re-play if Pinterest pauses a still-visible video.
       video.addEventListener('pause', () => {
-        if (this.visibleVideos.has(video)) {
+        // Don't re-play on individual pin pages, since we want to respect user interactions,
+        // and Pinterest will autoplay there anyway.
+        if (this.visibleVideos.has(video) &&
+            !/^\/pin\//.test(window.location.pathname)) {
           video.play().catch(() => {});
         }
       });
